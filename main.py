@@ -5,46 +5,67 @@ app = Flask(__name__)
 
 ACCOUNTS_FILE = "accounts.json"
 
-def read_accounts():
+# --- Helpers ---
+def load_accounts():
     if not os.path.exists(ACCOUNTS_FILE):
         with open(ACCOUNTS_FILE, "w") as f:
-            json.dump({"accounts": []}, f)
+            json.dump([], f)
     with open(ACCOUNTS_FILE, "r") as f:
         return json.load(f)
 
-def write_accounts(data):
+def save_accounts(data):
     with open(ACCOUNTS_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-@app.route('/register', methods=['POST'])
+# --- Register ---
+@app.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
     username = data.get("username")
+    email = data.get("email")
     password = data.get("password")
 
-    accounts_data = read_accounts()
-    for account in accounts_data["accounts"]:
-        if account["username"] == username:
-            return jsonify({"status": "error", "message": "Username already exists"}), 400
+    if not username or not email or not password:
+        return jsonify({"status": "error", "message": "Missing fields"})
 
-    accounts_data["accounts"].append({"username": username, "password": password})
-    write_accounts(accounts_data)
-    return jsonify({"status": "success", "message": "Account created successfully"}), 200
+    accounts = load_accounts()
 
+    # Check if username or email already exists
+    for acc in accounts:
+        if acc["username"] == username:
+            return jsonify({"status": "error", "message": "Username already exists"})
+        if acc["email"] == email:
+            return jsonify({"status": "error", "message": "Email already used"})
 
-@app.route('/login', methods=['POST'])
+    # Add new user
+    accounts.append({
+        "username": username,
+        "email": email,
+        "password": password
+    })
+    save_accounts(accounts)
+
+    return jsonify({"status": "success", "message": "Account created successfully!"})
+
+# --- Login ---
+@app.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
-    username = data.get("username")
+    email = data.get("email")
     password = data.get("password")
 
-    accounts_data = read_accounts()
-    for account in accounts_data["accounts"]:
-        if account["username"] == username and account["password"] == password:
-            return jsonify({"status": "success", "message": "Login successful"}), 200
+    accounts = load_accounts()
 
-    return jsonify({"status": "error", "message": "Invalid username or password"}), 401
+    for acc in accounts:
+        if acc["email"] == email and acc["password"] == password:
+            return jsonify({
+                "status": "success",
+                "message": "Login successful!",
+                "username": acc["username"]
+            })
 
+    return jsonify({"status": "error", "message": "Invalid email or password"})
 
-if __name__ == '__main__':
-    app.run()
+# --- Run locally for testing ---
+if __name__ == "__main__":
+    app.run(debug=True)
